@@ -66,18 +66,23 @@ def remaining_balance(k, P, r, M, n):
             return P * (1 + r)**k - M * ((1 + r)**k - 1) / r
         else:
             return P - M * k  # Zero interest case
-
 # Calculate remaining balance for each month
 df_hpi['Balance'] = df_hpi['k'].apply(lambda k: remaining_balance(k, P, r_monthly, M, n))
 
-# Calculate current value of the investment
+# Calculate current value of the investment (equity)
 df_hpi['Investment_Value'] = df_hpi['Price'] - df_hpi['Balance']
+
+# Calculate cumulative payments made up to each month
+df_hpi['Cumulative_Payments'] = df_hpi['k'] * M
+
+# Calculate investment return (equity minus total payments made)
+df_hpi['Investment_Return'] = df_hpi['Investment_Value'] - df_hpi['Cumulative_Payments']
 
 # Create an interactive line plot with 'Month' vs 'Investment_Value'
 fig = px.line(
     df_hpi,
     x='Month',
-    y='Investment_Value',
+    y='Investment_Return',
     title='Current Value of Investment in Israel Apartment'
 )
 
