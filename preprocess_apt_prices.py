@@ -21,6 +21,13 @@ if missing_columns:
     print(f"Error: Missing required columns: {missing_columns}")
     exit(1)
 
+# Ensure the 'שנה' column is numeric, coercing errors to NaN
+df['שנה'] = pd.to_numeric(df['שנה'], errors='coerce')
+
+# Remove rows where the year is less than 1986 or NaN
+df = df[df['שנה'] >= 1986].reset_index(drop=True)
+print(f"Filtered out rows with years < 1986 or invalid years. Remaining rows: {len(df)}")
+
 # Step 1: Standardize the 'מטבע' column and adjust monetary values
 # Define monetary columns to adjust
 monetary_columns = ['ממוצע שנתי', 'ינואר-מרס', 'אפריל-יוני', 'יולי-ספטמבר', 'אוקטובר-דצמבר']
@@ -87,6 +94,26 @@ def separate_area_room(value):
 try:
     df[['אזור', 'חדרים בדירה']] = df['אזור וחדרים בדירה'].apply(lambda x: pd.Series(separate_area_room(x)))
     print("Successfully separated 'אזור וחדרים בדירה' into 'אזור' and 'חדרים בדירה'")
+    
+    # Modify room ranges to ensure ascending order (e.g., "2-1" → "1-2")
+    def adjust_room_ranges(value):
+        if pd.isna(value):
+            return value
+        value = str(value).strip()
+        match = re.match(r'(\d+\.?\d*)\s*-\s*(\d+\.?\d*)', value)
+        if match:
+            start = int(float(match.group(1)))  # Convert 1.5 → 1
+            end = int(float(match.group(2)))    # Convert 2 → 2
+            sorted_values = sorted([start, end])  # Ensure ascending order
+            return f"{sorted_values[0]}-{sorted_values[1]}"
+        return value
+
+    try:
+        df['חדרים בדירה'] = df['חדרים בדירה'].apply(adjust_room_ranges)
+        print("Standardized room ranges to ascending order (e.g., '2-1' → '1-2')")
+    except Exception as e:
+        print(f"Error adjusting room ranges: {e}")
+
 except Exception as e:
     print(f"Error during column separation: {e}")
     exit(1)
