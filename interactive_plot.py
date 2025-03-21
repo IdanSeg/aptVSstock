@@ -18,7 +18,7 @@ def create_rtl_error_figure(title, message, color="red"):
     """Create a properly formatted RTL figure for error messages in Hebrew."""
     fig = go.Figure()
     
-    # Set up the figure with RTL formatting
+    # Set up the figure with RTL formatting (no direction property)
     fig.update_layout(
         title={
             'text': title,
@@ -26,12 +26,10 @@ def create_rtl_error_figure(title, message, color="red"):
             'xanchor': 'center',
             'font': {'family': 'Arial Hebrew, Arial, sans-serif', 'size': 20}
         },
-        xaxis={
-            'visible': False
-        },
-        yaxis={
-            'visible': False
-        },
+        # Hide axes completely
+        xaxis={'visible': False, 'showticklabels': False},
+        yaxis={'visible': False, 'showticklabels': False},
+        # Add clear message in the center
         annotations=[{
             'text': message,
             'showarrow': False,
@@ -39,33 +37,110 @@ def create_rtl_error_figure(title, message, color="red"):
             'yref': "paper",
             'x': 0.5,
             'y': 0.5,
+            'align': 'center',
             'font': {
                 'family': 'Arial Hebrew, Arial, sans-serif',
                 'size': 16,
                 'color': color
             }
         }],
-        margin={'t': 50, 'b': 20, 'l': 20, 'r': 20},
-        paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(0,0,0,0)',
+        margin={'t': 80, 'b': 20, 'l': 20, 'r': 20},
+        paper_bgcolor='rgba(245,245,245,0.9)',
+        plot_bgcolor='rgba(245,245,245,0.9)',
         height=300
     )
     
     return fig
 
-# Add this function near the top of your file:
+# Replace all error message generation with this new approach:
+
+def create_rtl_error_message(title, color="red", additional_text=None):
+    """Create a standardized RTL error message that will display properly in Hebrew"""
+    
+    # Add RTL mark character to start of strings to force RTL rendering
+    rtl_title = f"\u200F{title}"
+    
+    # Create a minimal figure with just an annotation in the center
+    fig = go.Figure()
+    fig.add_annotation(
+        text=f"<b>{rtl_title}</b>",
+        x=0.5, y=0.5,
+        xref="paper", yref="paper",
+        showarrow=False,
+        font=dict(
+            family="Arial Hebrew, Arial, sans-serif",
+            size=20,
+            color=color
+        ),
+        align="right"  # Right align for RTL text
+    )
+    
+    # Configure the layout for clean appearance
+    fig.update_layout(
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        xaxis={'visible': False, 'showticklabels': False},
+        yaxis={'visible': False, 'showticklabels': False},
+        margin=dict(l=0, r=0, t=0, b=0),
+        height=300,
+        template="plotly_white"
+    )
+    
+    # Create the message div with strongest possible RTL enforcement
+    additional_text_with_rtl = []
+    if additional_text:
+        additional_text_with_rtl = [f"\u200F{text}" for text in additional_text]
+        message_div = html.Div(
+            [
+                html.H3(rtl_title, 
+                       style={"color": color, "textAlign": "right"}, 
+                       dir="rtl"),
+                *[html.P(text, 
+                         style={"textAlign": "right"}, 
+                         dir="rtl") for text in additional_text_with_rtl]
+            ],
+            style={
+                "direction": "rtl", 
+                "unicode-bidi": "bidi-override", 
+                "text-align": "right"
+            },
+            dir="rtl"  # HTML dir attribute for strongest RTL support
+        )
+    else:
+        message_div = html.Div(
+            html.H3(rtl_title, 
+                   style={"color": color, "textAlign": "right"}, 
+                   dir="rtl"),
+            style={
+                "direction": "rtl", 
+                "unicode-bidi": "bidi-override", 
+                "text-align": "right"
+            },
+            dir="rtl"  # HTML dir attribute for strongest RTL support
+        )
+    
+    return fig, message_div
+
+# First, let's completely rewrite the Hebrew number formatter to ensure it works properly:
 
 def format_hebrew_number(num):
-    """Format numbers in Hebrew style with אלף and מיליון instead of K and M"""
+    """Format numbers in Hebrew style with proper אלף/מיליון suffixes"""
+    if pd.isna(num) or num == 0:
+        return "0 ₪"
+    
     abs_num = abs(num)
     sign = '-' if num < 0 else ''
     
+    # Only use מיליון if value is at least 1 million
     if abs_num >= 1_000_000:
         # Format as millions (מיליון)
-        return f"{sign}{abs_num / 1_000_000:.0f} מיליון ₪"
+        value = abs_num / 1_000_000
+        # Only show in millions if it's at least 1 million
+        return f"{sign}{value:.1f} מיליון ₪".replace('.0 ', ' ')
     elif abs_num >= 1_000:
         # Format as thousands (אלף)
-        return f"{sign}{abs_num / 1_000:.0f} אלף ₪"
+        value = abs_num / 1_000
+        return f"{sign}{value:.1f} אלף ₪".replace('.0 ', ' ')
     else:
         # Format regular numbers
         return f"{sign}{abs_num:.0f} ₪"
@@ -281,81 +356,52 @@ def update_bond_allocation(sp500_value):
 )
 def update_graph(apartment_region, apartment_rooms, loan_term_years, start_year, sp500_allocation):
     try:
-        # Load BOTH apartment and rent data up front
+        # Load apartment and rent data
         df_preprocessed = load_apartment_data(apartment_region, apartment_rooms)
         rent_df = load_rent_data(apartment_region, apartment_rooms)
         
-        # Check available years in apartment price data
+        # Check available years
         apartment_years = sorted(df_preprocessed['Year'].unique()) if 'Year' in df_preprocessed.columns else []
-        
-        # Check available years in rent data
         rent_years = sorted(rent_df['שנה'].unique()) if 'שנה' in rent_df.columns else []
         
-        # Find overlapping years between apartment and rent data
+        # Find overlapping years
+        available_years_for_selection = []
         if apartment_years and rent_years:
-            # Convert to sets for intersection
-            apt_years_set = set(apartment_years)
+            apartment_years_set = set(apartment_years)
             rent_years_set = set(rent_years)
-            available_years_for_selection = sorted(apt_years_set.intersection(rent_years_set))
-        else:
-            available_years_for_selection = []
+            available_years_for_selection = sorted(apartment_years_set.intersection(rent_years_set))
         
+        # Handle no data case
         if len(available_years_for_selection) == 0:
-            # No overlapping data for this region/room combination
-            empty_fig = go.Figure()
+            error_title = f'אין נתונים מלאים עבור {apartment_region} עם {apartment_rooms} חדרים'
+            additional_text = []
             
-            # Configure the figure for RTL support
-            empty_fig.update_layout(
-                title=f'אין נתונים מלאים עבור {apartment_region} עם {apartment_rooms} חדרים',
-                xaxis=dict(title='שנה', autorange="reversed"),  # Reverse X-axis for RTL effect
-                yaxis=dict(title='תשואה'),
-                annotations=[dict(
-                    text=f'אין נתוני מחיר ושכירות מלאים עבור {apartment_region} עם {apartment_rooms} חדרים',
-                    showarrow=False,
-                    xref="paper",
-                    yref="paper",
-                    x=0.5,
-                    y=0.5,
-                    font=dict(
-                        family="Arial Hebrew, Arial, sans-serif",
-                        size=14
-                    )
-                )],
-                font=dict(
-                    family="Arial Hebrew, Arial, sans-serif",
-                ),
-                direction="rtl"
-            )
+            if apartment_years:
+                apt_years_msg = f"טווח נתוני מחירי דירות: {min(apartment_years)} - {max(apartment_years)}"
+                additional_text.append(apt_years_msg)
+            else:
+                additional_text.append("אין נתוני מחירי דירות")
+                
+            if rent_years:
+                rent_years_msg = f"טווח נתוני שכירות: {min(rent_years)} - {max(rent_years)}"
+                additional_text.append(rent_years_msg)
+            else:
+                additional_text.append("אין נתוני שכירות")
             
-            # Provide more detailed information about what's missing
-            apt_years_msg = f"טווח נתוני מחירי דירות: {min(apartment_years)} - {max(apartment_years)}" if apartment_years else "אין נתוני מחירי דירות"
-            rent_years_msg = f"טווח נתוני שכירות: {min(rent_years)} - {max(rent_years)}" if rent_years else "אין נתוני שכירות"
-            
-            return empty_fig, html.Div([
-                html.H4(f"אין נתונים מלאים עבור {apartment_region} עם {apartment_rooms} חדרים", 
-                        style={'color': 'red', 'textAlign': 'center', 'direction': 'rtl'}),
-                html.P(apt_years_msg, style={'textAlign': 'center', 'direction': 'rtl'}),
-                html.P(rent_years_msg, style={'textAlign': 'center', 'direction': 'rtl'})
-            ], style={'direction': 'rtl'})
+            error_fig, error_message = create_rtl_error_message(error_title, "red", additional_text)
+            return error_fig, error_message
         
         # Now we have overlapping years, so check if start_year is in range
         earliest_year = min(available_years_for_selection)
         latest_year = max(available_years_for_selection)
         
-        # Check if selected start year is within available range
+        # Fix the year range error display:
         if start_year > latest_year or start_year < earliest_year:
-            # Create a single message with just the year range
             error_title = f'אזור זה זמין רק בין השנים {earliest_year} ו-{latest_year}'
-            
-            # No additional message text in the figure
-            empty_fig = create_rtl_error_figure(error_title, "", "orange")
-            
-            # Only the heading, no additional paragraph elements
-            return empty_fig, html.Div([
-                html.H4(error_title, style={'color': 'orange', 'textAlign': 'center'})
-            ], style={'direction': 'rtl'})
+            error_fig, error_message = create_rtl_error_message(error_title, "orange")
+            return error_fig, error_message
         
-        # Now filter data to only include years from start_year onwards
+        # Filter data to only include years from start_year onwards
         df_preprocessed = df_preprocessed[df_preprocessed['Year'] >= start_year]
         if len(df_preprocessed) == 0:
             # This shouldn't happen now with the checks above, but just in case
@@ -369,87 +415,189 @@ def update_graph(apartment_region, apartment_rooms, loan_term_years, start_year,
                 html.H4(f"אין מספיק נתונים להצגת התוצאות", style={'color': 'red', 'textAlign': 'center'})
             ])
         
-        # Load remaining data now that we're sure we have apartment data
-        rent_df = load_rent_data(apartment_region, apartment_rooms)
+        # Load all necessary data for calculations
+        interest_row = load_interest_rates()
+        df_cpi = load_cpi_data()
+        stock_returns = load_stock_returns()
+        bond_returns = load_bond_returns()
         
-        # Rest of the function remains the same...
-        
-        # Calculate other parameters
+        # Calculate inflation factors
         inflation_factors = calculate_inflation_factors(df_cpi, start_year)
+        
+        # Get interest rate based on loan term
         interest_rate = get_interest_rate(interest_row, loan_term_years)
+        
+        # Get initial property price
         initial_price = df_preprocessed.loc[df_preprocessed['Year'].idxmin(), 'Price']
         
-        # Calculate apartment investment metrics
+        # Calculate apartment investment metrics - THIS GIVES US THE DETAILED DATA
         df_apartment = calculate_investment_metrics(
             df_preprocessed, start_year, initial_price, 
             interest_rate, loan_term_years, rent_df, 
             apartment_region, apartment_rooms, inflation_factors
         )
         
-        # Calculate stock/bond portfolio performance
+        # Calculate market portfolio performance - THIS GIVES US THE DETAILED DATA 
         df_market = calculate_portfolio_performance(
             df_preprocessed, start_year, initial_price, 
             interest_rate, loan_term_years, stock_returns, 
             bond_returns, sp500_allocation, inflation_factors
         )
         
-        # Create plot data
-        df_apt_plot = df_apartment[['Year', 'Investment_Return']].copy()
-        df_apt_plot['Investment_Type'] = 'דירה'
+        # --------- SIMPLIFIED GRAPH APPROACH STARTS HERE ---------
+        
+        # Get most basic apartment data for plotting - DIRECT CALCULATIONS
+        df_apt_basic = df_apartment[['Year', 'Price', 'Balance', 'Cumulative_Payments', 'Cumulative_Rent']].copy()
+        # Simple, direct calculation of return: Value - Mortgage Balance - Payments + Rent Income
+        df_apt_basic['Net_Worth'] = df_apt_basic['Price'] - df_apt_basic['Balance']
+        df_apt_basic['Investment_Return'] = df_apt_basic['Net_Worth'] - df_apt_basic['Cumulative_Payments'] + df_apt_basic['Cumulative_Rent']
+        df_apt_basic['Investment_Type'] = 'דירה'
 
-        df_market_plot = df_market[['Year', 'Investment_Return']].copy()
-        df_market_plot['Investment_Type'] = 'תיק השקעות'
+        # Get most basic market data for plotting - DIRECT CALCULATIONS
+        df_market_basic = df_market[['Year', 'Portfolio_Value', 'Cumulative_Investment']].copy()
+        # Simple, direct calculation of return: Portfolio Value - Total Investment
+        df_market_basic['Investment_Return'] = df_market_basic['Portfolio_Value'] - df_market_basic['Cumulative_Investment']
+        df_market_basic['Investment_Type'] = 'תיק השקעות'
 
-        combined_df = pd.concat([df_apt_plot, df_market_plot], ignore_index=True)
+        # Combine for plotting
+        combined_df = pd.concat([df_apt_basic, df_market_basic], ignore_index=True)
+        
+        # Calculate scale for y-axis with directly calculated values
+        max_value = combined_df['Investment_Return'].max()
+        min_value = combined_df['Investment_Return'].min()
+        
+        # Scale determination based on calculated values
+        if max_value >= 1_000_000:
+            scale = 1_000_000
+            suffix = 'מיליון'
+        elif max_value >= 1_000:
+            scale = 1_000
+            suffix = 'אלף'
+        else:
+            scale = 1
+            suffix = ''
+        
+        # Create scaled version for display
+        scaled_df = combined_df.copy()
+        if scale > 1:
+            scaled_df['Investment_Return'] = scaled_df['Investment_Return'] / scale
+        
+        # Create basic figure
+        fig = go.Figure()
+        
+        # Apartment trace with detailed hover data
+        apartment_data = scaled_df[scaled_df['Investment_Type'] == 'דירה']
+        apartment_customdata = []
+        for year in apartment_data['Year']:
+            apt_row = df_apartment[df_apartment['Year'] == year].iloc[0]
+            apt_basic = df_apt_basic[df_apt_basic['Year'] == year].iloc[0]
+            
+            apartment_customdata.append({
+                'תשואה': format_hebrew_number(apt_basic['Investment_Return']),
+                'שווי_הדירה': format_hebrew_number(apt_row['Price']),
+                'יתרת_משכנתא': format_hebrew_number(apt_row['Balance']),
+                'הכנסות_שכירות_שנתיות': format_hebrew_number(apt_row['Yearly_Rent']),
+                'סהכ_הכנסות_שכירות': format_hebrew_number(apt_row['Cumulative_Rent']),
+                'שכד_חודשי': format_hebrew_number(apt_row['Yearly_Rent'] / 12)
+            })
 
-        # Create the figure (LTR for graph)
-        fig = px.line(
-            combined_df,
-            x='Year',
-            y='Investment_Return',
-            color='Investment_Type',
-            title='תשואה ריאלית על השקעה (מותאמת לאינפלציה)',
-            labels={
-                'Investment_Return': 'תשואה על השקעה (₪ במונחי היום)', 
-                'Year': 'שנה',
-                'Investment_Type': 'סוג השקעה'  # Add Hebrew translation for Investment_Type
-            }
-        )
+        fig.add_trace(go.Scatter(
+            x=apartment_data['Year'],
+            y=apartment_data['Investment_Return'],
+            name='דירה',
+            line=dict(color='#1f77b4'),
+            customdata=apartment_customdata,
+            hovertemplate=
+                "<b>דירה</b><br><br>" +
+                "<b>פרטים כלליים:</b><br>" +
+                "שנה: %{x}<br>" +
+                "תשואה כוללת: %{customdata.תשואה}<br><br>" +
+                "<b>פרטים נוספים:</b><br>" +
+                "שווי הדירה: %{customdata.שווי_הדירה}<br>" +
+                "יתרת משכנתא: %{customdata.יתרת_משכנתא}<br>" +
+                "שכ\"ד חודשי: %{customdata.שכד_חודשי}<br>" +
+                "הכנסות שכירות שנתיות: %{customdata.הכנסות_שכירות_שנתיות}<br>" +
+                "סה\"כ הכנסות שכירות: %{customdata.סהכ_הכנסות_שכירות}<br>" +
+                "<extra></extra>"
+        ))
 
-        # Update the formatter for hover text
-        fig.update_traces(
-            hovertemplate='<b>%{fullData.name}</b><br>' +
-                         'שנה: %{x}<br>' +
-                         'תשואה: %{y:.0f} ₪<extra></extra>'
-        )
+        # Market portfolio trace with detailed hover data
+        market_data = scaled_df[scaled_df['Investment_Type'] == 'תיק השקעות']
+        market_customdata = []
+        for year in market_data['Year']:
+            market_row = df_market[df_market['Year'] == year].iloc[0]
+            mkt_basic = df_market_basic[df_market_basic['Year'] == year].iloc[0]
+            
+            # Calculate values directly to avoid column reference issues
+            portfolio_value = market_row['Portfolio_Value']
+            cumulative_investment = market_row['Cumulative_Investment']
+            net_profit = portfolio_value - cumulative_investment
+            tax = market_row.get('Tax', 0)
+            total_fees = market_row.get('Total_Fees', 0)
+            
+            market_customdata.append({
+                'תשואה_נטו': format_hebrew_number(net_profit),
+                'שווי_תיק_השקעות': format_hebrew_number(portfolio_value),
+                'השקעה_מצטברת': format_hebrew_number(cumulative_investment),
+                'רווח_ברוטו': format_hebrew_number(net_profit + tax),
+                'מס': format_hebrew_number(tax),
+                'סהכ_עמלות': format_hebrew_number(total_fees),
+                'אחוז_השקעה_במניות': f"{sp500_allocation}%"
+            })
 
+        fig.add_trace(go.Scatter(
+            x=market_data['Year'],
+            y=market_data['Investment_Return'],
+            name='תיק השקעות',
+            line=dict(color='#ff7f0e'),
+            customdata=market_customdata,
+            hovertemplate=
+                "<b>תיק השקעות</b><br><br>" +
+                "<b>פרטים כלליים:</b><br>" +
+                "שנה: %{x}<br>" +
+                "תשואה נטו: %{customdata.תשואה_נטו}<br><br>" +
+                "<b>פרטים נוספים:</b><br>" +
+                "שווי תיק השקעות: %{customdata.שווי_תיק_השקעות}<br>" +
+                "סה\"כ השקעה: %{customdata.השקעה_מצטברת}<br>" +
+                "רווח ברוטו: %{customdata.רווח_ברוטו}<br>" +
+                "מס: %{customdata.מס}<br>" +
+                "עמלות: %{customdata.סהכ_עמלות}<br>" +
+                "אחוז השקעה במניות: %{customdata.אחוז_השקעה_במניות}<br>" +
+                "<extra></extra>"
+        ))
+        
+        # Calculate y-axis range for proper display
+        y_min = min(0, scaled_df['Investment_Return'].min())
+        y_max = scaled_df['Investment_Return'].max() * 1.1  # Add 10% padding
+        
+        # Update figure layout
         fig.update_layout(
-            xaxis_title='שנה',
-            yaxis_title='תשואה על השקעה (₪ במונחי היום)',
-            yaxis_title_standoff=30,  # Increase distance from axis
-            legend_title='סוג השקעה',
-            font=dict(
-                family="Arial Hebrew, Arial, sans-serif",
+            title='תשואה על השקעה',
+            xaxis=dict(
+                title='שנה',
+                fixedrange=True,
+                type='category'
             ),
-            # Format y-axis ticks without decimals
             yaxis=dict(
-                tickformat=",.0f",
-            )
+                title=f'תשואה על השקעה ({suffix} ₪)',
+                range=[y_min, y_max],
+                fixedrange=True,
+                tickformat=",.1f"
+            ),
+            hovermode='closest',
+            dragmode=False,
+            font=dict(family="Arial Hebrew, Arial, sans-serif"),
+            legend=dict(title='סוג השקעה')
         )
-
-        # Apply custom tick formatting to show Hebrew style numbers (thousands/millions)
-        tickvals = fig.layout.yaxis.tickvals if fig.layout.yaxis.tickvals else []
-        fig.update_layout(
-            yaxis=dict(
-                ticktext=[format_hebrew_number(val) for val in tickvals],
-                tickvals=tickvals,
-            )
-        )
-
-        # Generate compact results info with Hebrew number formatting
+        
+        # Generate results info using directly calculated values
         latest_year = max(df_apartment['Year'])
-        apt_final_return = df_apartment.loc[df_apartment['Year'] == latest_year, 'Investment_Return'].values[0]
-        market_final_return = df_market.loc[df_market['Year'] == latest_year, 'Investment_Return'].values[0]
+        apt_final_year = df_apt_basic[df_apt_basic['Year'] == latest_year]
+        apt_final_return = apt_final_year['Investment_Return'].values[0]
+
+        # Get market final return directly
+        market_final_year = df_market_basic[df_market_basic['Year'] == latest_year]
+        market_final_return = market_final_year['Investment_Return'].values[0]
 
         winner = "דירה" if apt_final_return > market_final_return else "תיק השקעות"
 
@@ -474,7 +622,7 @@ def update_graph(apartment_region, apartment_rooms, loan_term_years, start_year,
                 ], style={'display': 'inline-block', 'marginLeft': '2%', 'width': '30%'}),
                 
                 html.Div([
-                    html.Strong("ריבית: "), f"{interest_rate*100:.0f}%"  # Removed decimal points
+                    html.Strong("ריבית: "), f"{interest_rate*100:.0f}%"
                 ], style={'display': 'inline-block', 'marginLeft': '2%', 'width': '30%'}),
                 
                 html.Div([
@@ -484,11 +632,11 @@ def update_graph(apartment_region, apartment_rooms, loan_term_years, start_year,
             
             html.Div([
                 html.Div([
-                    html.Strong("תשואה סופית דירה: "), format_hebrew_number(apt_final_return)
+                    html.Strong("רווח נטו דירה: "), format_hebrew_number(apt_final_return)
                 ], style={'display': 'inline-block', 'marginLeft': '2%', 'width': '30%'}),
                 
                 html.Div([
-                    html.Strong("תשואה סופית שוק ההון: "), format_hebrew_number(market_final_return)
+                    html.Strong("רווח נטו שוק ההון: "), format_hebrew_number(market_final_return)
                 ], style={'display': 'inline-block', 'marginLeft': '2%', 'width': '30%'}),
                 
                 html.Div([
@@ -501,19 +649,10 @@ def update_graph(apartment_region, apartment_rooms, loan_term_years, start_year,
         return fig, results_info
         
     except Exception as e:
-        print(f"Error updating graph: {e}")
-        
+        print(f"Error updating graph: {e}")  # Log the error for debugging
         error_title = 'שגיאה בהצגת הנתונים'
-        error_msg = f'אירעה שגיאה: {str(e)}'
-        
-        empty_fig = create_rtl_error_figure(error_title, error_msg)
-        
-        return empty_fig, html.Div([
-            html.H4("שגיאה בהצגת הנתונים", 
-                   style={'color': 'red', 'textAlign': 'center'}),
-            html.P(f"פרטי השגיאה: {str(e)}", 
-                  style={'textAlign': 'center'})
-        ], style={'direction': 'rtl'})
+        error_fig, error_message = create_rtl_error_message(error_title, "red")
+        return error_fig, error_message
 
 # Run the app
 if __name__ == '__main__':
