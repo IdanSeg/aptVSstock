@@ -490,15 +490,15 @@ def update_graph(apartment_region, apartment_rooms, loan_term_years, start_year,
         apartment_customdata = []
         for year in apartment_data['Year']:
             apt_row = df_apartment[df_apartment['Year'] == year].iloc[0]
-            apt_basic = df_apt_basic[df_apt_basic['Year'] == year].iloc[0]
             
             apartment_customdata.append({
-                'תשואה': format_hebrew_number(apt_basic['Investment_Return']),
+                'תשואה_ריאלית': format_hebrew_number(apt_row['Investment_Return']),
                 'שווי_הדירה': format_hebrew_number(apt_row['Price']),
                 'יתרת_משכנתא': format_hebrew_number(apt_row['Balance']),
-                'הכנסות_שכירות_שנתיות': format_hebrew_number(apt_row['Yearly_Rent']),
+                'כסף_שהושקע': format_hebrew_number(apt_row['Cumulative_Payments']),
                 'סהכ_הכנסות_שכירות': format_hebrew_number(apt_row['Cumulative_Rent']),
-                'שכד_חודשי': format_hebrew_number(apt_row['Yearly_Rent'] / 12)
+                'שכד_חודשי': format_hebrew_number(apt_row['Yearly_Rent'] / 12),
+                'תשואה_נומינלית': format_hebrew_number(apt_row['Investment_Return_Nominal'])
             })
 
         fig.add_trace(go.Scatter(
@@ -511,13 +511,14 @@ def update_graph(apartment_region, apartment_rooms, loan_term_years, start_year,
                 "<b>דירה</b><br><br>" +
                 "<b>פרטים כלליים:</b><br>" +
                 "שנה: %{x}<br>" +
-                "תשואה כוללת: %{customdata.תשואה}<br><br>" +
+                "תשואה ריאלית: %{customdata.תשואה_ריאלית}<br><br>" +
                 "<b>פרטים נוספים:</b><br>" +
                 "שווי הדירה: %{customdata.שווי_הדירה}<br>" +
                 "יתרת משכנתא: %{customdata.יתרת_משכנתא}<br>" +
-                "שכ\"ד חודשי: %{customdata.שכד_חודשי}<br>" +
-                "הכנסות שכירות שנתיות: %{customdata.הכנסות_שכירות_שנתיות}<br>" +
+                "כסף שהושקע: %{customdata.כסף_שהושקע}<br>" +
+                "שכ\" ד חודשי (אחרי תחזוקה): %{customdata.שכד_חודשי}<br>" +
                 "סה\"כ הכנסות שכירות: %{customdata.סהכ_הכנסות_שכירות}<br>" +
+                "תשואה נומינלית: %{customdata.תשואה_נומינלית}<br>" +
                 "<extra></extra>"
         ))
 
@@ -526,20 +527,20 @@ def update_graph(apartment_region, apartment_rooms, loan_term_years, start_year,
         market_customdata = []
         for year in market_data['Year']:
             market_row = df_market[df_market['Year'] == year].iloc[0]
-            mkt_basic = df_market_basic[df_market_basic['Year'] == year].iloc[0]
             
             # Calculate values directly to avoid column reference issues
             portfolio_value = market_row['Portfolio_Value']
             cumulative_investment = market_row['Cumulative_Investment']
-            net_profit = portfolio_value - cumulative_investment
+            net_profit = market_row['Investment_Return']
+            net_profit_nominal = market_row['Net_Profit_Nominal']
             tax = market_row.get('Tax', 0)
             total_fees = market_row.get('Total_Fees', 0)
             
             market_customdata.append({
-                'תשואה_נטו': format_hebrew_number(net_profit),
+                'תשואה_נטו_ריאלית': format_hebrew_number(net_profit),
+                'תשואה_נטו_נומילית': format_hebrew_number(net_profit_nominal),
                 'שווי_תיק_השקעות': format_hebrew_number(portfolio_value),
                 'השקעה_מצטברת': format_hebrew_number(cumulative_investment),
-                'רווח_ברוטו': format_hebrew_number(net_profit + tax),
                 'מס': format_hebrew_number(tax),
                 'סהכ_עמלות': format_hebrew_number(total_fees),
                 'אחוז_השקעה_במניות': f"{sp500_allocation}%"
@@ -555,11 +556,11 @@ def update_graph(apartment_region, apartment_rooms, loan_term_years, start_year,
                 "<b>תיק השקעות</b><br><br>" +
                 "<b>פרטים כלליים:</b><br>" +
                 "שנה: %{x}<br>" +
-                "תשואה נטו: %{customdata.תשואה_נטו}<br><br>" +
+                "תשואה נטו ריאלית: %{customdata.תשואה_נטו_ריאלית}<br><br>" +
                 "<b>פרטים נוספים:</b><br>" +
+                "תשואה נטו נומינלית: %{customdata.תשואה_נטו_נומילית}<br>" +
                 "שווי תיק השקעות: %{customdata.שווי_תיק_השקעות}<br>" +
                 "סה\"כ השקעה: %{customdata.השקעה_מצטברת}<br>" +
-                "רווח ברוטו: %{customdata.רווח_ברוטו}<br>" +
                 "מס: %{customdata.מס}<br>" +
                 "עמלות: %{customdata.סהכ_עמלות}<br>" +
                 "אחוז השקעה במניות: %{customdata.אחוז_השקעה_במניות}<br>" +
@@ -572,7 +573,6 @@ def update_graph(apartment_region, apartment_rooms, loan_term_years, start_year,
         
         # Update figure layout
         fig.update_layout(
-            title='תשואה על השקעה',
             xaxis=dict(
                 title='שנה',
                 fixedrange=True,

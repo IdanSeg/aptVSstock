@@ -165,31 +165,39 @@ def calculate_cumulative_rent(row, df, start_year, rent_df, region, rooms):
     )
     return total_rent
 
-def calculate_inflation_factors(df_cpi, start_year):
-    """Calculate inflation factors relative to latest year."""
+def calculate_inflation_factors(df_cpi, start_year, base_cpi=100):
+    """Calculate inflation factors from annual CPI % changes relative to latest year."""
     df_cpi = df_cpi.sort_values('Year')
     
-    # Use whichever column name actually exists
+    # Use whichever column name exists for % change
     cpi_column = 'Total'  # Default
     if 'CPI' in df_cpi.columns:
         cpi_column = 'CPI'
     elif 'מדד' in df_cpi.columns:
         cpi_column = 'מדד'
-        
-    latest_cpi = df_cpi.iloc[-1][cpi_column]
     
-    inflation_factors = {}
+    # Convert % changes to absolute CPI values
+    cpi_values = {}
+    previous_cpi = base_cpi
     for _, row in df_cpi.iterrows():
         year = row['Year']
-        cpi = row[cpi_column]
-        # STANDARD APPROACH: divide by latest CPI
-        inflation_factors[year] = cpi / latest_cpi
+        cpi_change = row[cpi_column] / 100  # Convert % to decimal (e.g., 2.8 -> 0.028)
+        current_cpi = previous_cpi * (1 + cpi_change)
+        cpi_values[year] = current_cpi
+        previous_cpi = current_cpi
+    
+    # Latest CPI (2024 in your case)
+    latest_cpi = cpi_values[df_cpi['Year'].iloc[-1]]
+    
+    # Calculate inflation factors to adjust to latest year
+    inflation_factors = {}
+    for year, cpi in cpi_values.items():
+        inflation_factors[year] = latest_cpi / cpi  # Corrected to adjust TO latest year
     
     return inflation_factors
 
 def calculate_investment_metrics(df, start_year, P, interest_rate, term_years, rent_df, region, rooms, inflation_factors):
     """Calculate all investment metrics for the apartment, adjusted for inflation."""
-    # קוד קיים...
     down_payment = P * 0.25
     mortgage_amount = P * 0.75
     M = calculate_mortgage_payment(mortgage_amount, interest_rate, term_years)
@@ -225,16 +233,8 @@ def calculate_investment_metrics(df, start_year, P, interest_rate, term_years, r
     if missing_inflation_years:
         raise ValueError(f"Missing inflation data for years: {missing_inflation_years}")
     
-    # Revert to division (not multiplication) for real value calculations
-    df['Real_Price'] = df['Price'] / df['Inflation_Factor']
-    df['Real_Balance'] = df['Balance'] / df['Inflation_Factor']
-    df['Real_Investment_Value'] = df['Investment_Value'] / df['Inflation_Factor']
-    df['Real_Cumulative_Payments'] = df['Cumulative_Payments'] / df['Inflation_Factor']
-    df['Real_Yearly_Rent'] = df['Yearly_Rent'] / df['Inflation_Factor']
-    df['Real_Cumulative_Rent'] = df['Cumulative_Rent'] / df['Inflation_Factor']
-    
     # Revert to original calculation for the inflation-adjusted return
-    df['Investment_Return'] = df['Investment_Return_Nominal'] / df['Inflation_Factor']
+    df['Investment_Return'] = df['Investment_Return_Nominal'] * df['Inflation_Factor']
     
     return df
 
@@ -352,6 +352,7 @@ def calculate_portfolio_performance(df, start_year, initial_price, interest_rate
     portfolio_df.loc[portfolio_df.index[0], 'Initial_Exchange_Fee'] = initial_exchange_fee
     
     portfolio_df['Monthly_Exchange_Fees'] = 0.0
+    portfolio_df['Cumulative_Monthly_Exchange_Fees'] = 0.0  # Add this new column
     portfolio_df['Annual_Management_Fees'] = 0.0
     portfolio_df['Cumulative_Management_Fees'] = 0.0
     
@@ -366,10 +367,11 @@ def calculate_portfolio_performance(df, start_year, initial_price, interest_rate
             portfolio_df.loc[year, 'Annual_Cost'] = annual_management_fee
             portfolio_df.loc[year, 'Annual_Management_Fees'] = annual_management_fee
             portfolio_df.loc[year, 'Cumulative_Management_Fees'] = annual_management_fee
-            
+            portfolio_df.loc[year, 'Cumulative_Monthly_Exchange_Fees'] = 0.0  # Initialize
         else:
             prev_value = portfolio_df.loc[years[i - 1], 'Portfolio_Value']
             prev_cumulative_fees = portfolio_df.loc[years[i - 1], 'Cumulative_Management_Fees']
+            prev_cumulative_exchange_fees = portfolio_df.loc[years[i - 1], 'Cumulative_Monthly_Exchange_Fees']  # Get previous total
             
             stock_return = stock_returns.get(year, 0) / 100
             bond_return = bond_returns.get(year, 0) / 100
@@ -405,6 +407,7 @@ def calculate_portfolio_performance(df, start_year, initial_price, interest_rate
             portfolio_df.loc[year, 'Annual_Cost'] = annual_management_fee
             portfolio_df.loc[year, 'Annual_Management_Fees'] = annual_management_fee
             portfolio_df.loc[year, 'Monthly_Exchange_Fees'] = monthly_exchange_fees
+            portfolio_df.loc[year, 'Cumulative_Monthly_Exchange_Fees'] = prev_cumulative_exchange_fees + monthly_exchange_fees
             portfolio_df.loc[year, 'Cumulative_Management_Fees'] = prev_cumulative_fees + annual_management_fee
     
     # Fixed calculation flow that properly accounts for all fees and taxes:
@@ -415,10 +418,10 @@ def calculate_portfolio_performance(df, start_year, initial_price, interest_rate
     # 2. Portfolio value after all fees (including final exchange fee)
     portfolio_df['Portfolio_Value_After_Fees'] = portfolio_df['Portfolio_Value'] - portfolio_df['Final_Exchange_Fee']
     
-    # 3. Calculate total fees
+    # 3. Calculate total fees - use Cumulative_Monthly_Exchange_Fees instead of Monthly_Exchange_Fees
     portfolio_df['Total_Fees'] = (
         portfolio_df['Initial_Exchange_Fee'] + 
-        portfolio_df['Monthly_Exchange_Fees'] + 
+        portfolio_df['Cumulative_Monthly_Exchange_Fees'] +  # Use cumulative value 
         portfolio_df['Cumulative_Management_Fees'] + 
         portfolio_df['Final_Exchange_Fee']
     )
@@ -445,17 +448,8 @@ def calculate_portfolio_performance(df, start_year, initial_price, interest_rate
     if missing_inflation_years:
         raise ValueError(f"Missing inflation data for market portfolio in years: {missing_inflation_years}")
     
-    # ONLY use division for real value adjustments
-    portfolio_df['Real_Portfolio_Value'] = portfolio_df['Portfolio_Value'] / portfolio_df['Inflation_Factor']
-    portfolio_df['Real_Portfolio_Value_After_Fees'] = portfolio_df['Portfolio_Value_After_Fees'] / portfolio_df['Inflation_Factor']
-    portfolio_df['Real_Cumulative_Investment'] = portfolio_df['Cumulative_Investment'] / portfolio_df['Inflation_Factor']
-    portfolio_df['Real_Profit_Pretax'] = portfolio_df['Profit_Pretax'] / portfolio_df['Inflation_Factor']
-    portfolio_df['Real_Tax'] = portfolio_df['Tax'] / portfolio_df['Inflation_Factor']
-    portfolio_df['Real_Net_Profit'] = portfolio_df['Net_Profit_Nominal'] / portfolio_df['Inflation_Factor']
-    portfolio_df['Real_Total_Fees'] = portfolio_df['Total_Fees'] / portfolio_df['Inflation_Factor']
-    
     # CONSISTENT approach: use net profit divided by inflation factor
-    portfolio_df['Investment_Return'] = portfolio_df['Net_Profit_Nominal'] / portfolio_df['Inflation_Factor']
+    portfolio_df['Investment_Return'] = portfolio_df['Net_Profit_Nominal'] * portfolio_df['Inflation_Factor']
     
     return portfolio_df
 
