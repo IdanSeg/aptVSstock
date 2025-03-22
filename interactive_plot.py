@@ -444,29 +444,17 @@ def update_graph(apartment_region, apartment_rooms, loan_term_years, start_year,
             bond_returns, sp500_allocation, inflation_factors
         )
         
-        # --------- SIMPLIFIED GRAPH APPROACH STARTS HERE ---------
-        
-        # Get most basic apartment data for plotting - DIRECT CALCULATIONS
-        df_apt_basic = df_apartment[['Year', 'Price', 'Balance', 'Cumulative_Payments', 'Cumulative_Rent']].copy()
-        # Simple, direct calculation of return: Value - Mortgage Balance - Payments + Rent Income
-        df_apt_basic['Net_Worth'] = df_apt_basic['Price'] - df_apt_basic['Balance']
-        df_apt_basic['Investment_Return'] = df_apt_basic['Net_Worth'] - df_apt_basic['Cumulative_Payments'] + df_apt_basic['Cumulative_Rent']
-        df_apt_basic['Investment_Type'] = 'דירה'
+        # Fix the plotting code to use df_apartment and df_market directly
 
-        # Get most basic market data for plotting - DIRECT CALCULATIONS
-        df_market_basic = df_market[['Year', 'Portfolio_Value', 'Cumulative_Investment']].copy()
-        # Simple, direct calculation of return: Portfolio Value - Total Investment
-        df_market_basic['Investment_Return'] = df_market_basic['Portfolio_Value'] - df_market_basic['Cumulative_Investment']
-        df_market_basic['Investment_Type'] = 'תיק השקעות'
+        # Calculate scale based on the actual values in df_apartment and df_market
+        max_apt_return = df_apartment['Investment_Return'].max()
+        max_market_return = df_market['Investment_Return'].max()
+        max_value = max(max_apt_return, max_market_return)
+        min_apt_return = df_apartment['Investment_Return'].min()
+        min_market_return = df_market['Investment_Return'].min()
+        min_value = min(min_apt_return, min_market_return)
 
-        # Combine for plotting
-        combined_df = pd.concat([df_apt_basic, df_market_basic], ignore_index=True)
-        
-        # Calculate scale for y-axis with directly calculated values
-        max_value = combined_df['Investment_Return'].max()
-        min_value = combined_df['Investment_Return'].min()
-        
-        # Scale determination based on calculated values
+        # Determine scale for display
         if max_value >= 1_000_000:
             scale = 1_000_000
             suffix = 'מיליון'
@@ -476,21 +464,15 @@ def update_graph(apartment_region, apartment_rooms, loan_term_years, start_year,
         else:
             scale = 1
             suffix = ''
-        
-        # Create scaled version for display
-        scaled_df = combined_df.copy()
-        if scale > 1:
-            scaled_df['Investment_Return'] = scaled_df['Investment_Return'] / scale
-        
-        # Create basic figure
+
+        # Create figure
         fig = go.Figure()
-        
-        # Apartment trace with detailed hover data
-        apartment_data = scaled_df[scaled_df['Investment_Type'] == 'דירה']
+
+        # Apartment trace - use df_apartment directly
         apartment_customdata = []
-        for year in apartment_data['Year']:
+        for year in df_apartment['Year']:
             apt_row = df_apartment[df_apartment['Year'] == year].iloc[0]
-            
+
             apartment_customdata.append({
                 'תשואה_ריאלית': format_hebrew_number(apt_row['Investment_Return']),
                 'שווי_הדירה': format_hebrew_number(apt_row['Price']),
@@ -502,8 +484,8 @@ def update_graph(apartment_region, apartment_rooms, loan_term_years, start_year,
             })
 
         fig.add_trace(go.Scatter(
-            x=apartment_data['Year'],
-            y=apartment_data['Investment_Return'],
+            x=df_apartment['Year'],
+            y=df_apartment['Investment_Return'] / scale,  # Scale for display only
             name='דירה',
             line=dict(color='#1f77b4'),
             customdata=apartment_customdata,
@@ -522,33 +504,24 @@ def update_graph(apartment_region, apartment_rooms, loan_term_years, start_year,
                 "<extra></extra>"
         ))
 
-        # Market portfolio trace with detailed hover data
-        market_data = scaled_df[scaled_df['Investment_Type'] == 'תיק השקעות']
+        # Market trace - use df_market directly
         market_customdata = []
-        for year in market_data['Year']:
+        for year in df_market['Year']:
             market_row = df_market[df_market['Year'] == year].iloc[0]
-            
-            # Calculate values directly to avoid column reference issues
-            portfolio_value = market_row['Portfolio_Value']
-            cumulative_investment = market_row['Cumulative_Investment']
-            net_profit = market_row['Investment_Return']
-            net_profit_nominal = market_row['Net_Profit_Nominal']
-            tax = market_row.get('Tax', 0)
-            total_fees = market_row.get('Total_Fees', 0)
-            
+
             market_customdata.append({
-                'תשואה_נטו_ריאלית': format_hebrew_number(net_profit),
-                'תשואה_נטו_נומילית': format_hebrew_number(net_profit_nominal),
-                'שווי_תיק_השקעות': format_hebrew_number(portfolio_value),
-                'השקעה_מצטברת': format_hebrew_number(cumulative_investment),
-                'מס': format_hebrew_number(tax),
-                'סהכ_עמלות': format_hebrew_number(total_fees),
+                'תשואה_נטו_ריאלית': format_hebrew_number(market_row['Investment_Return']),
+                'תשואה_נטו_נומילית': format_hebrew_number(market_row['Net_Profit_Nominal']),
+                'שווי_תיק_השקעות': format_hebrew_number(market_row['Portfolio_Value']),
+                'השקעה_מצטברת': format_hebrew_number(market_row['Cumulative_Investment']),
+                'מס': format_hebrew_number(market_row.get('Tax', 0)),
+                'סהכ_עמלות': format_hebrew_number(market_row.get('Total_Fees', 0)),
                 'אחוז_השקעה_במניות': f"{sp500_allocation}%"
             })
 
         fig.add_trace(go.Scatter(
-            x=market_data['Year'],
-            y=market_data['Investment_Return'],
+            x=df_market['Year'],
+            y=df_market['Investment_Return'] / scale,  # Scale for display only
             name='תיק השקעות',
             line=dict(color='#ff7f0e'),
             customdata=market_customdata,
@@ -566,13 +539,21 @@ def update_graph(apartment_region, apartment_rooms, loan_term_years, start_year,
                 "אחוז השקעה במניות: %{customdata.אחוז_השקעה_במניות}<br>" +
                 "<extra></extra>"
         ))
-        
+
         # Calculate y-axis range for proper display
-        y_min = min(0, scaled_df['Investment_Return'].min())
-        y_max = scaled_df['Investment_Return'].max() * 1.1  # Add 10% padding
-        
+        y_min = min(0, min_value / scale)
+        y_max = (max_value / scale) * 1.1  # Add 10% padding
+
         # Update figure layout
         fig.update_layout(
+            # Set fixed height and width for consistent size
+            height=500,  # Fixed height in pixels
+            width=1100,  # Fixed width in pixels
+            
+            # Dynamic margins to accommodate axis labels
+            margin=dict(l=50, r=50, t=50, b=70),
+            
+            # Standard chart settings
             xaxis=dict(
                 title='שנה',
                 fixedrange=True,
@@ -580,27 +561,54 @@ def update_graph(apartment_region, apartment_rooms, loan_term_years, start_year,
             ),
             yaxis=dict(
                 title=f'תשואה על השקעה ({suffix} ₪)',
-                range=[y_min, y_max],
+                # Dynamic range - let Plotly handle it automatically
+                # (remove the explicit range setting)
+                # range=[y_min, y_max],
                 fixedrange=True,
-                tickformat=",.1f"
+                tickformat=",.1f",
+                automargin=True  # Allow margin to grow to fit labels
             ),
             hovermode='closest',
             dragmode=False,
             font=dict(family="Arial Hebrew, Arial, sans-serif"),
-            legend=dict(title='סוג השקעה')
+            legend=dict(
+                title='סוג השקעה',
+                orientation="h",  # Horizontal legend
+                yanchor="bottom",
+                y=1.02,  # Position above the chart
+                xanchor="center",
+                x=0.5
+            )
         )
         
         # Generate results info using directly calculated values
         latest_year = max(df_apartment['Year'])
-        apt_final_year = df_apt_basic[df_apt_basic['Year'] == latest_year]
+        apt_final_year = df_apartment[df_apartment['Year'] == latest_year]
         apt_final_return = apt_final_year['Investment_Return'].values[0]
 
         # Get market final return directly
-        market_final_year = df_market_basic[df_market_basic['Year'] == latest_year]
+        market_final_year = df_market[df_market['Year'] == latest_year]
         market_final_return = market_final_year['Investment_Return'].values[0]
 
-        winner = "דירה" if apt_final_return > market_final_return else "תיק השקעות"
+        # Calculate area under curve (sum of returns over time) for both investments
+        apt_area = df_apartment['Investment_Return'].sum()
+        market_area = df_market['Investment_Return'].sum()
 
+        # Determine winner based on total area under curve (better overall performance)
+        winner = "דירה" if apt_area > market_area else "תיק השקעות"
+
+        # Get the first year's data
+        first_apt_row = df_apartment[df_apartment['Year'] == start_year].iloc[0]
+
+        # Fix the real price calculation to match how inflation factors are calculated in plot.py
+
+        # Get the first year's data
+        first_apt_row = df_apartment[df_apartment['Year'] == start_year].iloc[0]
+
+        # MULTIPLY by inflation factor (don't divide)
+        real_apt_price = first_apt_row['Price'] * first_apt_row['Inflation_Factor']
+
+        # Update the results_info div with the calculated real apartment price
         results_info = html.Div([
             html.Div([
                 html.Div([
@@ -626,10 +634,12 @@ def update_graph(apartment_region, apartment_rooms, loan_term_years, start_year,
                 ], style={'display': 'inline-block', 'marginLeft': '2%', 'width': '30%'}),
                 
                 html.Div([
-                    html.Strong("שנת התחלה: "), f"{start_year}"
+                    # Show manually calculated real apartment price
+                    html.Strong("מחיר דירה ריאלי: "), format_hebrew_number(real_apt_price)
                 ], style={'display': 'inline-block', 'width': '30%'})
             ]),
             
+            # Rest of the results_info div remains the same
             html.Div([
                 html.Div([
                     html.Strong("רווח נטו דירה: "), format_hebrew_number(apt_final_return)
