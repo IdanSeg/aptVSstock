@@ -450,16 +450,15 @@ def prepare_data_for_plotting(df_apartment, df_market, scale):
 
 def create_standard_graph_layout(suffix, width=None, height=None):
     """
-    Creates a standardized graph layout to avoid code duplication
-    Now with better mobile support - auto-width and height
+    Creates a standardized graph layout with proper hover colors
     """
     return {
-        'autosize': True,  # Allow graph to size automatically
-        'margin': dict(l=50, r=50, t=50, b=90),  # Increased bottom margin
+        'autosize': True,
+        'margin': dict(l=50, r=50, t=50, b=90),
         'xaxis': dict(
             title=dict(
                 text='שנה',
-                standoff=40  # Increased standoff for x-axis title
+                standoff=40
             ),
             fixedrange=True,
             type='category'
@@ -483,14 +482,8 @@ def create_standard_graph_layout(suffix, width=None, height=None):
             y=1.02,
             xanchor="center",
             x=0.5
-        ),
-        # Add hover label configuration
-        'hoverlabel': dict(
-            bgcolor="#f8f9fa",
-            bordercolor="#ddd",
-            font_size=13,
-            font_family="Arial, sans-serif"  # Use standard English font for hover
         )
+        # Removed the hoverlabel configuration to allow individual trace colors
     }
 
 def calculate_scale(max_value):
@@ -609,7 +602,7 @@ def update_graph(apartment_region, apartment_rooms, loan_term_years, start_year,
                 "<b>Property</b><br><br>" +
                 "<b>General:</b><br>" +
                 "Year: %{x}<br>" +
-                "Return: %{customdata.תשואה_ריאלית}<br><br>" +
+                "Real Return: %{customdata.תשואה_ריאלית}<br><br>" +
                 "<b>Details:</b><br>" +
                 "Value: %{customdata.שווי_הדירה}<br>" +
                 "Mortgage: %{customdata.יתרת_משכנתא}<br>" +
@@ -630,7 +623,7 @@ def update_graph(apartment_region, apartment_rooms, loan_term_years, start_year,
                 "<b>Portfolio</b><br><br>" +
                 "<b>General:</b><br>" +
                 "Year: %{x}<br>" +
-                "Return: %{customdata.תשואה_נטו_ריאלית}<br><br>" +
+                "Real Return: %{customdata.תשואה_נטו_ריאלית}<br><br>" +
                 "<b>Details:</b><br>" +
                 "Nominal Return: %{customdata.תשואה_נטו_נומילית}<br>" +
                 "Portfolio Value: %{customdata.שווי_תיק_השקעות}<br>" +
