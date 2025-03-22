@@ -458,7 +458,7 @@ def create_standard_graph_layout(suffix, width=None, height=None):
         'xaxis': dict(
             title=dict(
                 text='שנה',
-                standoff=40
+                standoff=30  # Increase this value (was 40)
             ),
             fixedrange=True,
             type='category'
@@ -472,6 +472,7 @@ def create_standard_graph_layout(suffix, width=None, height=None):
             tickformat=",.1f",
             automargin=True
         ),
+        # Rest of the layout remains the same
         'hovermode': 'closest',
         'dragmode': False,
         'font': dict(family="Arial Hebrew, Arial, sans-serif"),
@@ -483,9 +484,7 @@ def create_standard_graph_layout(suffix, width=None, height=None):
             xanchor="center",
             x=0.5
         )
-        # Removed the hoverlabel configuration to allow individual trace colors
     }
-
 def calculate_scale(max_value):
     """Determine appropriate scale for y-axis display"""
     if max_value >= 1_000_000:
@@ -707,8 +706,30 @@ def update_graph(apartment_region, apartment_rooms, loan_term_years, start_year,
     except Exception as e:
         logger.error(f"Error updating graph: {e}", exc_info=True)
         error_title = 'שגיאה בהצגת הנתונים'
-        error_fig, error_message = create_rtl_message(error_title, "red")
-        return error_fig, error_message
+        
+        # Create an empty figure with no annotations
+        empty_fig = go.Figure()
+        empty_fig.update_layout(
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            xaxis={'visible': False, 'showticklabels': False},
+            yaxis={'visible': False, 'showticklabels': False},
+            margin=dict(l=0, r=0, t=0, b=0),
+            height=300,
+            template="plotly_white"
+        )
+        
+        # Create the error message div
+        error_message = html.Div(
+            [
+                html.H3(f"\u200F{error_title}", style={"color": "red", "textAlign": "right"}, dir="rtl")
+            ],
+            style={"direction": "rtl", "unicode-bidi": "bidi-override", "text-align": "right"},
+            dir="rtl"
+        )
+        
+        # Return empty figure and error message
+        return empty_fig, error_message
 
 # Run the app
 if __name__ == '__main__':
