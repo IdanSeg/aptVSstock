@@ -21,25 +21,12 @@ from plot import (load_apartment_data, load_rent_data, load_interest_rates, load
 # ---- EFFICIENCY FIX 1: CONSOLIDATE ERROR HANDLING ----
 def create_rtl_message(title, color="red", additional_text=None, is_error=True):
     """
-    Unified function for creating RTL error/info messages - eliminates duplicate code
+    Unified function for creating RTL error/info messages - returns empty figure and message div
     """
     rtl_title = f"\u200F{title}"
     
-    # Create a minimal figure
+    # Create a completely empty figure with no annotations
     fig = go.Figure()
-    fig.add_annotation(
-        text=f"<b>{rtl_title}</b>",
-        x=0.5, y=0.5,
-        xref="paper", yref="paper",
-        showarrow=False,
-        font=dict(
-            family="Arial Hebrew, Arial, sans-serif",
-            size=20,
-            color=color
-        ),
-        align="right"
-    )
-    
     fig.update_layout(
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
