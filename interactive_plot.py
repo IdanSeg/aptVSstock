@@ -230,6 +230,14 @@ app.index_string = '''
                     padding: 5px !important;
                 }
             }
+            
+            /* Fix hover tooltip display */
+            .hoverlayer .hovertext {
+                max-width: 300px !important;
+                font-size: 13px !important;
+                direction: ltr !important; /* Changed to LTR for English text */
+                text-align: left !important; /* Left align for English */
+            }
         </style>
         
         <!-- Improved JavaScript to handle dropdowns better -->
@@ -258,9 +266,23 @@ app.index_string = '''
                     });
                 }
                 
+                // Add hover fix function
+                function fixHoverText() {
+                    const hovers = document.querySelectorAll('.hoverlayer .hovertext');
+                    if (hovers.length > 0) {
+                        hovers.forEach(hover => {
+                            hover.style.backgroundColor = '#f8f9fa';
+                            hover.style.border = '1px solid #ddd';
+                            hover.style.direction = 'ltr';
+                            hover.style.textAlign = 'left';
+                        });
+                    }
+                }
+                
                 // Apply initially and periodically to catch dynamically created elements
                 preventKeyboard();
                 setInterval(preventKeyboard, 1000);
+                setInterval(fixHoverText, 100);
             });
         </script>
     </head>
@@ -433,11 +455,11 @@ def create_standard_graph_layout(suffix, width=None, height=None):
     """
     return {
         'autosize': True,  # Allow graph to size automatically
-        'margin': dict(l=50, r=50, t=50, b=70),
+        'margin': dict(l=50, r=50, t=50, b=90),  # Increased bottom margin
         'xaxis': dict(
             title=dict(
                 text='שנה',
-                standoff=15
+                standoff=40  # Increased standoff for x-axis title
             ),
             fixedrange=True,
             type='category'
@@ -461,6 +483,13 @@ def create_standard_graph_layout(suffix, width=None, height=None):
             y=1.02,
             xanchor="center",
             x=0.5
+        ),
+        # Add hover label configuration
+        'hoverlabel': dict(
+            bgcolor="#f8f9fa",
+            bordercolor="#ddd",
+            font_size=13,
+            font_family="Arial, sans-serif"  # Use standard English font for hover
         )
     }
 
@@ -577,17 +606,17 @@ def update_graph(apartment_region, apartment_rooms, loan_term_years, start_year,
             line=dict(color='#1f77b4'),
             customdata=plot_data['apartment_customdata'],
             hovertemplate=
-                "<b>דירה</b><br><br>" +
-                "<b>פרטים כלליים:</b><br>" +
-                "שנה: %{x}<br>" +
-                "תשואה ריאלית: %{customdata.תשואה_ריאלית}<br><br>" +
-                "<b>פרטים נוספים:</b><br>" +
-                "שווי הדירה: %{customdata.שווי_הדירה}<br>" +
-                "יתרת משכנתא: %{customdata.יתרת_משכנתא}<br>" +
-                "כסף שהושקע: %{customdata.כסף_שהושקע}<br>" +
-                "שכ\" ד חודשי (אחרי תחזוקה): %{customdata.שכד_חודשי}<br>" +
-                "סה\"כ הכנסות שכירות: %{customdata.סהכ_הכנסות_שכירות}<br>" +
-                "תשואה נומינלית: %{customdata.תשואה_נומינלית}<br>" +
+                "<b>Property</b><br><br>" +
+                "<b>General:</b><br>" +
+                "Year: %{x}<br>" +
+                "Return: %{customdata.תשואה_ריאלית}<br><br>" +
+                "<b>Details:</b><br>" +
+                "Value: %{customdata.שווי_הדירה}<br>" +
+                "Mortgage: %{customdata.יתרת_משכנתא}<br>" +
+                "Investment: %{customdata.כסף_שהושקע}<br>" +
+                "Monthly Rent: %{customdata.שכד_חודשי}<br>" +
+                "Total Rent: %{customdata.סהכ_הכנסות_שכירות}<br>" +
+                "Nominal Return: %{customdata.תשואה_נומינלית}<br>" +
                 "<extra></extra>"
         ))
         
@@ -598,17 +627,17 @@ def update_graph(apartment_region, apartment_rooms, loan_term_years, start_year,
             line=dict(color='#ff7f0e'),
             customdata=plot_data['market_customdata'],
             hovertemplate=
-                "<b>תיק השקעות</b><br><br>" +
-                "<b>פרטים כלליים:</b><br>" +
-                "שנה: %{x}<br>" +
-                "תשואה נטו ריאלית: %{customdata.תשואה_נטו_ריאלית}<br><br>" +
-                "<b>פרטים נוספים:</b><br>" +
-                "תשואה נטו נומינלית: %{customdata.תשואה_נטו_נומילית}<br>" +
-                "שווי תיק השקעות: %{customdata.שווי_תיק_השקעות}<br>" +
-                "סה\"כ השקעה: %{customdata.השקעה_מצטברת}<br>" +
-                "מס: %{customdata.מס}<br>" +
-                "עמלות: %{customdata.סהכ_עמלות}<br>" +
-                "אחוז השקעה במניות: %{customdata.אחוז_השקעה_במניות}<br>" +
+                "<b>Portfolio</b><br><br>" +
+                "<b>General:</b><br>" +
+                "Year: %{x}<br>" +
+                "Return: %{customdata.תשואה_נטו_ריאלית}<br><br>" +
+                "<b>Details:</b><br>" +
+                "Nominal Return: %{customdata.תשואה_נטו_נומילית}<br>" +
+                "Portfolio Value: %{customdata.שווי_תיק_השקעות}<br>" +
+                "Total Investment: %{customdata.השקעה_מצטברת}<br>" +
+                "Tax: %{customdata.מס}<br>" +
+                "Fees: %{customdata.סהכ_עמלות}<br>" +
+                "Stock Allocation: %{customdata.אחוז_השקעה_במניות}<br>" +
                 "<extra></extra>"
         ))
         
