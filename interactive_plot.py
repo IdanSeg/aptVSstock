@@ -270,7 +270,7 @@ app.layout = html.Div([
         
         # Footer
         html.Div(
-            "מקורות נתונים: מחירי נדל\"ן בישראל, תשואות S&P 500, תשואות אג\"ח",
+            "מקורות נתונים: הלשכה המרכזית לסטטיסטיקה, תשואות S&P 500, תשואות אג\"ח",
             style={'marginTop': '10px', 'fontSize': 'smaller', 'fontStyle': 'italic', 'textAlign': 'center'}
         )
     ], style={'margin': '0 auto', 'maxWidth': '1200px', 'padding': '10px'})
@@ -344,13 +344,15 @@ def create_standard_graph_layout(suffix, width=1100, height=500):
         'xaxis': dict(
             title='שנה',
             fixedrange=True,
-            type='category'
+            type='category',
+            titlepad=15  # Add padding for x-axis title
         ),
         'yaxis': dict(
             title=f'תשואה על השקעה ({suffix} ₪)',
             fixedrange=True,
             tickformat=",.1f",
-            automargin=True
+            automargin=True,
+            titlepad=30  # Add more padding between y-axis and its title
         ),
         'hovermode': 'closest',
         'dragmode': False,
