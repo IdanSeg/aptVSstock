@@ -184,9 +184,7 @@ app.index_string = '''
 </html>
 '''
 
-# Set up the app layout (unchanged)
 app.layout = html.Div([
-    html.H1("השוואת השקעה: דירה מול שוק ההון", style={'textAlign': 'center'}),
     
     # Control panel
     html.Div([
