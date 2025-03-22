@@ -138,8 +138,9 @@ app = dash.Dash(__name__,
                 ])
 server = app.server  # Expose Flask server for Heroku
 
-# Update the app.index_string with keyboard suppression for dropdowns
+# Fix dropdown behavior and improve mobile hover display
 
+# Update the index_string with improved mobile styles and JavaScript
 app.index_string = '''
 <!DOCTYPE html>
 <html dir="rtl" lang="he">
@@ -177,7 +178,8 @@ app.index_string = '''
             .Select-input > input {
                 opacity: 0;
                 position: absolute;
-                cursor: pointer;
+                /* Remove cursor pointer which causes issues */
+                cursor: default;
                 /* Disable all keyboard input interactions */
                 pointer-events: none !important;
                 touch-action: none !important;
@@ -189,6 +191,13 @@ app.index_string = '''
             }
             .Select-value {
                 pointer-events: none;
+            }
+            
+            /* Improve hover tooltip display on small screens */
+            .hoverlayer .hovertext {
+                max-width: 300px !important;
+                white-space: normal !important;
+                font-size: 13px !important;
             }
             
             /* Mobile-specific styles */
@@ -213,13 +222,20 @@ app.index_string = '''
                 .responsive-graph {
                     height: 350px !important;
                 }
+                
+                /* Make hover tooltips better on mobile */
+                .hoverlayer .hovertext {
+                    max-width: 250px !important;
+                    font-size: 12px !important;
+                    padding: 5px !important;
+                }
             }
         </style>
         
-        <!-- Add JavaScript to disable keyboard on dropdowns -->
+        <!-- Improved JavaScript to handle dropdowns better -->
         <script>
             document.addEventListener('DOMContentLoaded', function() {
-                // Function to disable virtual keyboard
+                // Function to disable virtual keyboard but keep dropdown open
                 function preventKeyboard() {
                     // Find all dropdown inputs
                     const dropdownInputs = document.querySelectorAll('.Select-input > input');
@@ -228,16 +244,21 @@ app.index_string = '''
                         input.setAttribute('inputmode', 'none');
                         input.setAttribute('readonly', 'readonly');
                         
-                        // Prevent focus behavior that triggers keyboard
+                        // Don't blur on focus, which causes dropdowns to close immediately
                         input.addEventListener('focus', function(e) {
-                            setTimeout(function() {
-                                input.blur();
-                            }, 10);
+                            e.preventDefault();
+                            // Don't blur - this was causing dropdowns to close right away
                         });
+                        
+                        // Handle touch events better
+                        input.parentElement.parentElement.addEventListener('touchstart', function(e) {
+                            // Let the click propagate but prevent keyboard
+                            e.stopPropagation();
+                        }, true);
                     });
                 }
                 
-                // Apply initially and then every second to catch dynamically created elements
+                // Apply initially and periodically to catch dynamically created elements
                 preventKeyboard();
                 setInterval(preventKeyboard, 1000);
             });
