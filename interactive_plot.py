@@ -138,7 +138,8 @@ app = dash.Dash(__name__,
                 ])
 server = app.server  # Expose Flask server for Heroku
 
-# App layout (unchanged)
+# Update the app.index_string with keyboard suppression for dropdowns
+
 app.index_string = '''
 <!DOCTYPE html>
 <html dir="rtl" lang="he">
@@ -171,7 +172,76 @@ app.index_string = '''
                 max-height: 200px;
                 overflow-y: auto;
             }
+            
+            /* Prevent keyboard from opening on mobile */
+            .Select-input > input {
+                opacity: 0;
+                position: absolute;
+                cursor: pointer;
+                /* Disable all keyboard input interactions */
+                pointer-events: none !important;
+                touch-action: none !important;
+            }
+            
+            /* Fix dropdown appearance and focus issues */
+            .Select-control {
+                cursor: pointer !important;
+            }
+            .Select-value {
+                pointer-events: none;
+            }
+            
+            /* Mobile-specific styles */
+            @media (max-width: 768px) {
+                .control-item {
+                    width: 100% !important;
+                    margin-left: 0 !important;
+                    margin-bottom: 10px;
+                }
+                
+                .results-item {
+                    width: 100% !important;
+                    margin-left: 0 !important;
+                    margin-bottom: 5px;
+                }
+                
+                .control-panel {
+                    padding: 8px;
+                }
+                
+                /* Make the graph adjust to screen size */
+                .responsive-graph {
+                    height: 350px !important;
+                }
+            }
         </style>
+        
+        <!-- Add JavaScript to disable keyboard on dropdowns -->
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                // Function to disable virtual keyboard
+                function preventKeyboard() {
+                    // Find all dropdown inputs
+                    const dropdownInputs = document.querySelectorAll('.Select-input > input');
+                    dropdownInputs.forEach(input => {
+                        // Set attributes to prevent keyboard
+                        input.setAttribute('inputmode', 'none');
+                        input.setAttribute('readonly', 'readonly');
+                        
+                        // Prevent focus behavior that triggers keyboard
+                        input.addEventListener('focus', function(e) {
+                            setTimeout(function() {
+                                input.blur();
+                            }, 10);
+                        });
+                    });
+                }
+                
+                // Apply initially and then every second to catch dynamically created elements
+                preventKeyboard();
+                setInterval(preventKeyboard, 1000);
+            });
+        </script>
     </head>
     <body>
         {%app_entry%}
@@ -184,12 +254,13 @@ app.index_string = '''
 </html>
 '''
 
+# Update the app layout to use the new responsive classes 
 app.layout = html.Div([
     
     # Control panel
     html.Div([
         html.Div([
-            # First row with dropdowns
+            # First row with dropdowns - make responsive
             html.Div([
                 html.Div([
                     html.Label("אזור"),
@@ -199,7 +270,7 @@ app.layout = html.Div([
                         value='כולם',
                         clearable=False
                     ),
-                ], style={'width': '32%', 'display': 'inline-block', 'marginLeft': '1%'}),
+                ], style={'width': '32%', 'display': 'inline-block', 'marginLeft': '1%'}, className='control-item'),
                 
                 html.Div([
                     html.Label("חדרים"),
@@ -209,7 +280,7 @@ app.layout = html.Div([
                         value='הכל',
                         clearable=False
                     ),
-                ], style={'width': '32%', 'display': 'inline-block', 'marginLeft': '1%'}),
+                ], style={'width': '32%', 'display': 'inline-block', 'marginLeft': '1%'}, className='control-item'),
                 
                 html.Div([
                     html.Label("שנת התחלה"),
@@ -219,10 +290,10 @@ app.layout = html.Div([
                         value=1994,
                         clearable=False
                     ),
-                ], style={'width': '32%', 'display': 'inline-block'}),
+                ], style={'width': '32%', 'display': 'inline-block'}, className='control-item'),
             ], style={'marginBottom': '10px'}),
             
-            # Second row with sliders
+            # Second row with sliders - make responsive
             html.Div([
                 html.Div([
                     html.Label("תקופת המשכנתא (שנים)"),
@@ -234,7 +305,7 @@ app.layout = html.Div([
                         marks={i: str(i) for i in range(5, 31, 5)},
                         value=25
                     ),
-                ], style={'width': '48%', 'display': 'inline-block', 'marginLeft': '2%'}),
+                ], style={'width': '48%', 'display': 'inline-block', 'marginLeft': '2%'}, className='control-item'),
                 
                 html.Div([
                     html.Label("אחוז השקעה במניות S&P 500"),
@@ -250,28 +321,31 @@ app.layout = html.Div([
                         marks={i: str(i) for i in range(0, 101, 20)},
                         value=80
                     ),
-                ], style={'width': '48%', 'display': 'inline-block'}),
+                ], style={'width': '48%', 'display': 'inline-block'}, className='control-item'),
             ]),
         ], className='control-panel'),
                 
-        # Results info panel
+        # Results info panel - make responsive
         html.Div(id='results-info', className='results-panel'),
         
-        # Graph area with fixed dimensions
+        # Graph area with responsive dimensions
         html.Div([
             dcc.Graph(
                 id='investment-comparison-graph',
-                config={'displayModeBar': False},
+                config={
+                    'displayModeBar': False,
+                    'responsive': True  # Make graph responsive
+                },
                 style={'height': '500px', 'width': '100%'}
             )
-        ], style={'marginTop': '10px'}),
+        ], style={'marginTop': '10px'}, className='responsive-graph'),
         
         # Footer
         html.Div(
             "מקורות נתונים: הלשכה המרכזית לסטטיסטיקה, תשואות S&P 500, תשואות אג\"ח",
             style={'marginTop': '10px', 'fontSize': 'smaller', 'fontStyle': 'italic', 'textAlign': 'center'}
         )
-    ], style={'margin': '0 auto', 'maxWidth': '1200px', 'padding': '10px'})
+    ], style={'margin': '0 auto', 'maxWidth': '1200px', 'padding': '10px', 'width': '95%'})  # Adjust container width
 ])
 
 # Bond allocation callback (unchanged)
@@ -331,18 +405,18 @@ def prepare_data_for_plotting(df_apartment, df_market, scale):
         'years': sorted(df_apartment['Year'].unique())
     }
 
-def create_standard_graph_layout(suffix, width=1100, height=500):
+def create_standard_graph_layout(suffix, width=None, height=None):
     """
     Creates a standardized graph layout to avoid code duplication
+    Now with better mobile support - auto-width and height
     """
     return {
-        'height': height,
-        'width': width,
+        'autosize': True,  # Allow graph to size automatically
         'margin': dict(l=50, r=50, t=50, b=70),
         'xaxis': dict(
             title=dict(
                 text='שנה',
-                standoff=15  # Use standoff instead of titlepad
+                standoff=15
             ),
             fixedrange=True,
             type='category'
@@ -350,7 +424,7 @@ def create_standard_graph_layout(suffix, width=1100, height=500):
         'yaxis': dict(
             title=dict(
                 text=f'תשואה על השקעה ({suffix} ₪)',
-                standoff=30  # Use standoff instead of titlepad
+                standoff=30
             ),
             fixedrange=True,
             tickformat=",.1f",
