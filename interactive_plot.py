@@ -6,6 +6,8 @@ from dash.dependencies import Input, Output
 import plotly.graph_objs as go
 import logging
 from functools import lru_cache
+import os
+from flask import Flask
 
 # Set up proper logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -134,6 +136,7 @@ app = dash.Dash(__name__,
                 meta_tags=[
                     {"name": "viewport", "content": "width=device-width, initial-scale=1"}
                 ])
+server = app.server  # Expose Flask server for Heroku
 
 # App layout (unchanged)
 app.index_string = '''
@@ -588,4 +591,6 @@ def update_graph(apartment_region, apartment_rooms, loan_term_years, start_year,
 
 # Run the app
 if __name__ == '__main__':
-    app.run_server(debug=True)
+    # Get port from environment variable (Heroku sets this)
+    port = int(os.environ.get('PORT', 8050))
+    app.run_server(debug=False, host='0.0.0.0', port=port)
