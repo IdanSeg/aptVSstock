@@ -342,17 +342,21 @@ def create_standard_graph_layout(suffix, width=1100, height=500):
         'width': width,
         'margin': dict(l=50, r=50, t=50, b=70),
         'xaxis': dict(
-            title='שנה',
+            title=dict(
+                text='שנה',
+                standoff=15  # Use standoff instead of titlepad
+            ),
             fixedrange=True,
-            type='category',
-            titlepad=15  # Add padding for x-axis title
+            type='category'
         ),
         'yaxis': dict(
-            title=f'תשואה על השקעה ({suffix} ₪)',
+            title=dict(
+                text=f'תשואה על השקעה ({suffix} ₪)',
+                standoff=30  # Use standoff instead of titlepad
+            ),
             fixedrange=True,
             tickformat=",.1f",
-            automargin=True,
-            titlepad=30  # Add more padding between y-axis and its title
+            automargin=True
         ),
         'hovermode': 'closest',
         'dragmode': False,
